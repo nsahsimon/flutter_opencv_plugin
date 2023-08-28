@@ -277,11 +277,9 @@ class Opencv {
       debugPrint("$e");
       debugPrint("Failed to close the stream");
     }
-
     debugPrint("(added numbers) Returning $result from detectCorners");
     return result;
   }
-
 
 }
 
