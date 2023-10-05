@@ -118,6 +118,7 @@ Future<List<List<double>>> _detectCorners(Map data, DynamicLibrary omrLib) async
   return results;
 }
 
+
 /// Add logic for other functions
 /*
     <return type> _<process name>(<arguments>) async {
@@ -125,6 +126,7 @@ Future<List<List<double>>> _detectCorners(Map data, DynamicLibrary omrLib) async
     return <something>;
     }
  */
+
 
 void createDirs(List<String> dirPaths){
   for(String dir in dirPaths) {
@@ -145,6 +147,7 @@ void createDirs(List<String> dirPaths){
     }
   }
 }
+
 
 ///Contains methods running on the other isolate
 class OpencvIsolate {
@@ -280,6 +283,7 @@ class Opencv {
     debugPrint("(added numbers) Returning $result from detectCorners");
     return result;
   }
+
 
 }
 
