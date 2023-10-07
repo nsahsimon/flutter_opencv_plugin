@@ -120,6 +120,138 @@ Future<List<List<double>>> _detectCorners(Map data, DynamicLibrary omrLib) async
   return results;
 }
 
+Future<bool> _loadDescriptors(Map data, DynamicLibrary omrLib) async{
+  try {
+    ///unpacking data
+    String imagesPath = data['images_path'];
+    debugPrint("Retrieved images path in isolate: $imagesPath");
+    String featuresFilePath = imagesPath + "/features.yml";
+    List<String> imagesPathList = [];
+    final files = await Directory(imagesPath).list().toList();
+
+    // Store the path of each image in the imagesPathList
+    for (final file in files) {
+      if (file is File) {
+        if(file.path.contains(".yml") == false) {
+          imagesPathList.add(file.path);
+        }
+      }
+    }
+    debugPrint("Successfully loaded imagesPathList");
+
+    // Allocate memory for an array of pointers to Utf8 strings
+    final imagesPathListPtr = calloc<Pointer<Utf8>>(imagesPathList.length);
+
+    // Allocate memory for each string and copy the data
+    for (var i = 0; i < imagesPathList.length; i++) {
+      final str = imagesPathList[i];
+      final utf8Str = str.toNativeUtf8();
+      imagesPathListPtr[i] = utf8Str;
+    }
+
+    debugPrint("Successfully loaded imagesPathListPtr");
+
+    Pointer<Utf8> featuresFilePathPtr = featuresFilePath.toNativeUtf8();
+    int pathCount = imagesPathList.length;
+
+    int Function(
+        Pointer<Pointer<Utf8>> imagesPathListPtr, Pointer<Utf8> featuresFilePathPtr, int pathCount)
+    loadDescriptorsDart = omrLib.lookup<NativeFunction<
+        Int32 Function(
+            Pointer<Pointer<Utf8>>, Pointer<Utf8>, Int32)
+    >>("loadDescriptors").asFunction();
+    debugPrint("Successfully loaded \"LoadDescriptors function\"");
+
+    int start = DateTime.now().microsecondsSinceEpoch;
+    int result = loadDescriptorsDart(imagesPathListPtr, featuresFilePathPtr,pathCount);
+    int stop = DateTime.now().microsecondsSinceEpoch;
+    int time = stop - start;
+
+    if(result == 0) {
+
+    }else if (result == 1) {
+      debugPrint("Features were re-computed for all images");
+    }else if (result == 2) {
+      debugPrint("Features were not re-computed for all features");
+    }
+    debugPrint("***LOADED DESCRIPTORS IN : ${time / 1000000} SECONDS****");
+    return true;
+  }catch(e) {
+    debugPrint("$e");
+    return false;
+  }
+}
+
+Future<int> _findBestMatch(Map data, DynamicLibrary omrLib) async{
+  ///unpacking data
+  var frame = data['frame'];
+  debugPrint("Retrieved frame in isolate. Dimensions: (${frame.width}, ${frame.height}) ");
+
+  /// Allocate memory for the 3 planes of the image
+  Pointer<Uint8> plane0Bytes = malloc.allocate(frame.planes[0].bytes.length);
+  Pointer<Uint8> plane1Bytes = malloc.allocate(frame.planes[1].bytes.length);
+  Pointer<Uint8> plane2Bytes = malloc.allocate(frame.planes[2].bytes.length);
+
+  /// Assign the planes data to the pointers of the image
+  Uint8List pointerList = plane0Bytes.asTypedList(
+      frame.planes[0].bytes.length
+  );
+  Uint8List pointerList1 = plane1Bytes.asTypedList(
+      frame.planes[1].bytes.length
+  );
+  Uint8List pointerList2 = plane2Bytes.asTypedList(
+      frame.planes[2].bytes.length
+  );
+  pointerList.setRange(0, frame.planes[0].bytes.length,
+      frame.planes[0].bytes);
+  pointerList1.setRange(0, frame.planes[1].bytes.length,
+      frame.planes[1].bytes);
+  pointerList2.setRange(0, frame.planes[2].bytes.length,
+      frame.planes[2].bytes);
+
+  ///Extract relevant parameters from the image frame
+  int width = frame.width;
+  int height = frame.height;
+  int bytesPerRow0 = frame.planes[0].bytesPerRow;
+  int bytesPerPixel0 = frame.planes[0].bytesPerPixel;
+  int bytesPerRow1 = frame.planes[1].bytesPerRow;
+  int bytesPerPixel1 = frame.planes[1].bytesPerPixel;
+  int bytesPerRow2 = frame.planes[2].bytesPerRow;
+  int bytesPerPixel2 = frame.planes[2].bytesPerPixel;
+
+
+  int Function(
+      Pointer<Uint8> plane0Bytes,Pointer<Uint8> plane1Bytes,Pointer<Uint8> plane2Bytes,
+      int width, int height,
+      int bytesPerRowPlane0, int bytesPerRowPlane1,int bytesPerRowPlane2,
+      int bytesPerPixelPlane0, int bytesPerPixelPlane1, int bytesPerPixelPlane2) findBestMatchDart
+  = omrLib.lookup<NativeFunction<Int32 Function(
+      Pointer<Uint8>, Pointer<Uint8>, Pointer<Uint8>,
+      Int32, Int32,
+      Int32, Int32, Int32,
+      Int32, Int32, Int32)>>("findBestMatch").asFunction();
+
+
+
+  int start = DateTime.now().microsecondsSinceEpoch;
+  int bestMatchId = findBestMatchDart(
+      plane0Bytes, plane1Bytes, plane2Bytes,
+      width, height,
+      bytesPerRow0, bytesPerRow1, bytesPerRow2,
+      bytesPerPixel0, bytesPerPixel1, bytesPerPixel2
+  );
+
+  int stop = DateTime.now().microsecondsSinceEpoch;
+  int time = stop - start;
+  debugPrint("***DETECTED CORNERS IN : ${time / 1000} SECONDS****");
+
+  ///free memory
+  malloc.free(plane0Bytes);
+  malloc.free(plane1Bytes);
+  malloc.free(plane2Bytes);
+
+  return bestMatchId;
+}
 
 /// Add logic for other functions
 /*
@@ -128,7 +260,6 @@ Future<List<List<double>>> _detectCorners(Map data, DynamicLibrary omrLib) async
     return <something>;
     }
  */
-
 
 void createDirs(List<String> dirPaths){
   for(String dir in dirPaths) {
@@ -149,7 +280,6 @@ void createDirs(List<String> dirPaths){
     }
   }
 }
-
 
 ///Contains methods running on the other isolate
 class OpencvIsolate {
@@ -183,11 +313,17 @@ class OpencvIsolate {
               double? result = await _add(message, omrLib);
               sendPort.send(result);
             }else if (message['process'] == 'DETECT_CORNERS') {
-              debugPrint("Isolate detected detectConer message");
+              debugPrint("Isolate detected detectCorner message");
               List<List<double>> result = await _detectCorners(message, omrLib);
               sendPort.send(result);
+            }else if (message['process'] == 'LOAD_DESCRIPTORS') {
+              var result = await _loadDescriptors(message, omrLib);
+              sendPort.send(result);
+            }else if (message['process'] == 'FIND_BEST_MATCH') {
+              int result = await _findBestMatch(message, omrLib);
+              sendPort.send(result);
             }
-            ///Add your own processes
+            ///Add your own processes handlers
             /*
             else if (message['process'] == '<PROCESS_NAME>') {
               <return type> result = await <process function>(message, omrLib);
@@ -211,6 +347,7 @@ class Opencv {
   static StreamController<dynamic>? resultStreamController;
   static String root = "";
   static late String appName;
+  static List<String> imageNames = [];
 
   Future<void> initialize({String newAppName = "MatcherApp"}) async {
     appName = newAppName;
@@ -336,15 +473,33 @@ class Opencv {
    * Image matching functions
    */
 
-  ///load featured descriptors from images in a specified directory
+  /// load feature descriptors from images in a specified directory
   Future<dynamic> loadDescriptors({required String srcPath}) async {
+    //todo: terminate function if images from srcPath have already been loaded
+
     String dstPath = await getRootDirectory();
-    await copyFilesBetweenDirectories(srcPath, dstPath);
+    imageNames = await copyFilesBetweenDirectories(srcPath, dstPath);
+    debugPrint("Loading descriptors in isolate");
+    var result;
+    try {
+      resultStreamController = StreamController();
+      mainSendPort.send({"images_path": dstPath , 'process':'LOAD_DESCRIPTORS'});
+      debugPrint("Running stream");
+      result = await resultStreamController!.stream.first;// as Future<List<Map<String, dynamic>?>>;
+      debugPrint("Trying to close stream");
+      resultStreamController!.close();
+      resultStreamController = null;
+    } catch(e) {
+      debugPrint("$e");
+      debugPrint("Failed to close the stream");
+    }
+    debugPrint("(Loaded descriptors) Returning $result from loadDescriptors");
+    return result;
   }
 
   Future<dynamic> findBestMatch({required var frame}) async{
     debugPrint("Finding Best Match in isolate");
-    List<List<double>> result = [];
+    int result = -1;
     try {
       resultStreamController = StreamController();
       mainSendPort.send({"frame": frame , 'process':'FIND_BEST_MATCH'});
@@ -359,11 +514,23 @@ class Opencv {
     }
 
     debugPrint("(Process complete) Returning $result from findBestMatch");
-    return result;
+
+    if(result == -1 || imageNames.isEmpty) {
+      if(imageNames.isEmpty) {
+        debugPrint("***Image names are empty: Returning null");
+      } else {
+        debugPrint("***Result is -1: Returning null");
+      }
+      return null;
+    }else {
+      return imageNames[result];
+    }
+
   }
 }
 
-Future<void> copyFilesBetweenDirectories(String sourceDir, String destinationDir) async {
+Future<List<String>> copyFilesBetweenDirectories(String sourceDir, String destinationDir) async {
+  List<String> imageNames = [];
   try {
     final sourceDirectory = Directory(sourceDir);
     final destinationDirectory = Directory(destinationDir);
@@ -387,11 +554,16 @@ Future<void> copyFilesBetweenDirectories(String sourceDir, String destinationDir
         final fileName = file.uri.pathSegments.last;
         final destinationFile = File('${destinationDirectory.path}/$fileName');
         await file.copy(destinationFile.path);
+        imageNames.add(fileName.substring(0, fileName.indexOf(".")));
       }
     }
+
   } catch (e) {
     debugPrint('Error: $e');
+    return [];
   }
+
+  return imageNames;
 }
 
 

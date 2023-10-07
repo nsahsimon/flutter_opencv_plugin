@@ -13,10 +13,11 @@ float native_add(float num1, float num2) {
 
 // Functions for image matching
 extern "C" __attribute__((visibility("default"))) __attribute__((used))
-void loadDescriptors(char** imagePathsPrimitive, char* featuresFilePath, int pathCount) {
+int32_t loadDescriptors(char** imagePathsPrimitive, char* featuresFilePath, int pathCount) {
     _loadDescriptors(imagePathsPrimitive, featuresFilePath, pathCount);
-    return;
+    return loadDescriptorResult;
 }
+
 
 extern "C" __attribute__((visibility("default"))) __attribute__((used))
 int32_t findBestMatch(
