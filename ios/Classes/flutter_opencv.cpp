@@ -1,5 +1,7 @@
 #include <stdint.h>
 #include <opencv2/opencv.hpp>
+#include "image_matcher.hpp"
+
 
 // Add all C/C++ functions
 extern "C" __attribute__((visibility("default"))) __attribute__((used))

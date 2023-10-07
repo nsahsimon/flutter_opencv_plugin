@@ -10,6 +10,8 @@ import 'dart:core';
 import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import 'dart:typed_data';
+import 'package:permission_handler/permission_handler.dart';
+
 
 int result = 0;
 
@@ -207,8 +209,11 @@ class Opencv {
   static late final SendPort mainSendPort;
   static late final Isolate? opencvIsolate;
   static StreamController<dynamic>? resultStreamController;
+  static String root = "";
+  static late String appName;
 
-  Future<void> initialize() async {
+  Future<void> initialize({String newAppName = "MatcherApp"}) async {
+    appName = newAppName;
     mainReceivePort = ReceivePort();
 
     /// Create opencv isolate
@@ -235,6 +240,49 @@ class Opencv {
 
     debugPrint(">> Initializing the opencv library");
     debugPrint(">> Loading the dynamic libraries");
+  }
+
+  static Future<String> getRootDirectory() async {
+    var dir;
+    /// Try requesting for external storage permissions
+    // bool result = await SuperEasyPermissions.isGranted(Permissions.storage);
+    bool result = await Permission.storage.isGranted;
+    if (!result) {
+      bool status = await Permission.storage.request().isGranted;
+      if (status) {
+        try {
+          dir = Directory("/storage/emulated/0/Documents");
+        } catch (e) {
+          dir = Directory("/storage/emulated/0/Documents");
+        }
+      } else {
+        var dirs = await getExternalStorageDirectories();
+        for (var dir in dirs!) {
+          debugPrint("${dir.path}");
+        }
+        dir = dirs[0];
+      }
+    } else {
+      if (Directory("/storage/emulated/0/Documents").existsSync()) {
+        debugPrint("Device storage directory already exists");
+      }
+      try {
+        dir = Directory("/storage/emulated/0/Documents");
+      } catch (e) {
+        dir = Directory("/storage/emulated/0/Documents");
+      }
+    }
+
+    if (!Directory("${dir!.path}/$appName").existsSync()) {
+      Directory("${dir!.path}/$appName").createSync(recursive: true);
+      root = "${dir!.path}/$appName";
+      debugPrint("The root directory: $root");
+    } else {
+      debugPrint("The root directory already exists");
+      root = "${dir!.path}/$appName";
+      debugPrint("The root directory: $root");
+    }
+    return root;
   }
 
   Future<Map<String, dynamic>> processImage({required String path, required List<String> correctAnswers}) async{
@@ -284,8 +332,68 @@ class Opencv {
     return result;
   }
 
+  /**
+   * Image matching functions
+   */
 
+  ///load featured descriptors from images in a specified directory
+  Future<dynamic> loadDescriptors({required String srcPath}) async {
+    String dstPath = await getRootDirectory();
+    await copyFilesBetweenDirectories(srcPath, dstPath);
+  }
+
+  Future<dynamic> findBestMatch({required var frame}) async{
+    debugPrint("Finding Best Match in isolate");
+    List<List<double>> result = [];
+    try {
+      resultStreamController = StreamController();
+      mainSendPort.send({"frame": frame , 'process':'FIND_BEST_MATCH'});
+      debugPrint("Running stream");
+      result = await resultStreamController!.stream.first;
+      debugPrint("Trying to close stream");
+      resultStreamController!.close();
+      resultStreamController = null;
+    } catch(e) {
+      debugPrint("$e");
+      debugPrint("Failed to close the stream");
+    }
+
+    debugPrint("(Process complete) Returning $result from findBestMatch");
+    return result;
+  }
 }
+
+Future<void> copyFilesBetweenDirectories(String sourceDir, String destinationDir) async {
+  try {
+    final sourceDirectory = Directory(sourceDir);
+    final destinationDirectory = Directory(destinationDir);
+
+    // Ensure that the source directory exists
+    if (!await sourceDirectory.exists()) {
+      throw Exception('Source directory does not exist.');
+    }
+
+    // Ensure that the destination directory exists; create it if not.
+    if (!await destinationDirectory.exists()) {
+      await destinationDirectory.create(recursive: true);
+    }
+
+    // List all files in the source directory
+    final files = await sourceDirectory.list().toList();
+
+    // Copy each file to the destination directory
+    for (final file in files) {
+      if (file is File) {
+        final fileName = file.uri.pathSegments.last;
+        final destinationFile = File('${destinationDirectory.path}/$fileName');
+        await file.copy(destinationFile.path);
+      }
+    }
+  } catch (e) {
+    debugPrint('Error: $e');
+  }
+}
+
 
 
 
