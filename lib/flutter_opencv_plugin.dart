@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:device_info_plus/device_info_plus.dart';
 import 'package:flutter/services.dart';
 import 'dart:ffi';
 import 'package:ffi/ffi.dart';
@@ -11,7 +12,6 @@ import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import 'dart:typed_data';
 import 'package:permission_handler/permission_handler.dart';
-
 
 int result = 0;
 
@@ -350,6 +350,7 @@ class Opencv {
   static List<String> imageNames = [];
 
   Future<void> initialize({String newAppName = "MatcherApp"}) async {
+    await getStoragePermission();
     appName = newAppName;
     mainReceivePort = ReceivePort();
 
@@ -523,9 +524,25 @@ class Opencv {
       }
       return null;
     }else {
-      return imageNames[result];
+      try{
+        return imageNames[result];
+      }catch(e) {
+        debugPrint("$e");
+        return null;
+      }
     }
 
+  }
+
+  void close() {
+    return;
+    try{
+      resultStreamController!.close();
+      resultStreamController = null;
+      debugPrint("Successfully closed result stream controller");
+    }catch(e) {
+      debugPrint("$e");
+    }
   }
 }
 
@@ -547,6 +564,9 @@ Future<List<String>> copyFilesBetweenDirectories(String sourceDir, String destin
 
     // List all files in the source directory
     final files = await sourceDirectory.list().toList();
+    if(files.isEmpty) {
+      debugPrint("There are no files found in the source directory");
+    }
 
     // Copy each file to the destination directory
     for (final file in files) {
@@ -558,6 +578,8 @@ Future<List<String>> copyFilesBetweenDirectories(String sourceDir, String destin
       }
     }
 
+    debugPrint("Successfully copied ${imageNames.length} files");
+
   } catch (e) {
     debugPrint('Error: $e');
     return [];
@@ -567,6 +589,27 @@ Future<List<String>> copyFilesBetweenDirectories(String sourceDir, String destin
 }
 
 
+Future<void> getStoragePermission() async {
+  DeviceInfoPlugin plugin = DeviceInfoPlugin();
+  AndroidDeviceInfo android = await plugin.androidInfo;
+  if (android.version.sdkInt < 33) {
+    if (await Permission.storage.request().isGranted) {
+      debugPrint("Permission granted");
+    } else if (await Permission.storage.request().isPermanentlyDenied) {
+      await openAppSettings();
+    } else if (await Permission.photos.request().isDenied) {
+      debugPrint("Permission is DENIED");
+    }
+  } else {
+    if (await Permission.photos.request().isGranted) {
+        debugPrint("Permission GRANTED");
+    } else if (await Permission.photos.request().isPermanentlyDenied) {
+      await openAppSettings();
+    } else if (await Permission.photos.request().isDenied) {
+      debugPrint("Permission is DENIED");
+    }
+  }
+}
 
 
 

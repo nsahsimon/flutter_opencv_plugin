@@ -283,11 +283,16 @@ bool isSameAsLatest(Mat& img) {
 
 
 int _findBestMatchMat(Mat& imgGray) {
-    if(isSameAsLatest(imgGray) == true) {
-        return mostRecentId;
-    }else {
-        return findID(imgGray);
-    }
+ try {
+     if(isSameAsLatest(imgGray) == true) {
+         return mostRecentId;
+     }else {
+         return findID(imgGray);
+     }
+ } catch(exception e) {
+    return -1;
+ }
+
 }
 
 

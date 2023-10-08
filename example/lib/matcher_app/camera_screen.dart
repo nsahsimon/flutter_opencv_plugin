@@ -70,14 +70,19 @@ class _CameraScreenState extends State<CameraScreen> {
               }
               int start = DateTime.now().microsecondsSinceEpoch;
               String? tempPrediction = await Opencv().findBestMatch(frame: frame);
-              setState(() {
-              prediction = tempPrediction;
-              if(prediction == null) {
-                nullDetectionCount++;
-              } else {
-                nullDetectionCount = 0;
+              await Future.delayed(Duration(milliseconds: 600));
+
+              if(mounted){
+                setState(() {
+                  prediction = tempPrediction;
+                  if(prediction == null) {
+                    nullDetectionCount++;
+                  } else {
+                    nullDetectionCount = 0;
+                  }
+                });
               }
-              });
+
               int stop = DateTime.now().microsecondsSinceEpoch;
               if(mounted) {
                 setState(() {
@@ -91,6 +96,7 @@ class _CameraScreenState extends State<CameraScreen> {
           setState(() {
           });
         }
+
       });
     });
 
@@ -101,6 +107,7 @@ class _CameraScreenState extends State<CameraScreen> {
 
   @override
   void dispose() {
+    Opencv().close();
     try {
       controller!.stopImageStream();
     }catch(e) {
@@ -112,6 +119,7 @@ class _CameraScreenState extends State<CameraScreen> {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    Opencv().close();
     final CameraController? cameraController = controller;
 
     // App state changed before we got the chance to initialize.
@@ -123,6 +131,7 @@ class _CameraScreenState extends State<CameraScreen> {
       cameraController.dispose();
     } else if (state == AppLifecycleState.resumed) {
     }
+
   }
 
 
@@ -143,14 +152,7 @@ class _CameraScreenState extends State<CameraScreen> {
       return Container();
     }
     // controller!.setZoomLevel(1.6);
-    return OrientationBuilder(
-      builder: (context, orientation) {
-        if(orientation == Orientation.portrait) {
-          debugPrint("Portrait orientation");
-        } else if (orientation == Orientation.landscape) {
-          debugPrint("Landscape orientation");
-        }
-        return SafeArea(
+    return SafeArea(
           child: Scaffold(
             body: LayoutBuilder(
               builder: (context, constraints) {
@@ -207,8 +209,6 @@ class _CameraScreenState extends State<CameraScreen> {
 
           ),
         );
-      }
-    );
   }
 }
 

@@ -3,6 +3,7 @@ import 'package:flutter_opencv_plugin/flutter_opencv_plugin.dart';
 import 'package:flutter_opencv_plugin_example/matcher_app/matcher_app.dart';
 
 void main() async{
+  WidgetsFlutterBinding.ensureInitialized();
   await Opencv().initialize(newAppName: "MatcherApp");
   runApp(const MyApp());
 }
