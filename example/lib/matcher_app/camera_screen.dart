@@ -46,11 +46,15 @@ class _CameraScreenState extends State<CameraScreen> {
     Future(()async{
       try {
         cameras = await availableCameras();
-        controller = CameraController(cameras![0], ResolutionPreset.veryHigh);
+        debugPrint("There ${cameras.length} Cameras available");
+        final camera = cameras!.first;
+        controller = CameraController(camera, ResolutionPreset.medium);
+        setState(() {
+
+        });
       }catch(e) {
         return;
       }
-
 
       controller?.initialize().then((_) {
         controller!.setExposureMode(ExposureMode.auto);
@@ -91,7 +95,6 @@ class _CameraScreenState extends State<CameraScreen> {
               }
             }
         );
-
         if(mounted) {
           setState(() {
           });
@@ -152,13 +155,11 @@ class _CameraScreenState extends State<CameraScreen> {
       return Container();
     }
     // controller!.setZoomLevel(1.6);
+    double displayHeight = MediaQuery.of(context).size.height;
+    double displayWidth = MediaQuery.of(context).size.width;
     return SafeArea(
           child: Scaffold(
-            body: LayoutBuilder(
-              builder: (context, constraints) {
-                double displayWidth = constraints.maxWidth;
-                double displayHeight = constraints.maxHeight;
-                return Stack(
+            body: Stack(
                   children: [
                     Container(
                         width: displayWidth,
@@ -189,7 +190,6 @@ class _CameraScreenState extends State<CameraScreen> {
                               Expanded(
                                   child: Container(
                                       color: blackTransparent,
-
                                   )),
                             ]
                           ),
@@ -203,12 +203,10 @@ class _CameraScreenState extends State<CameraScreen> {
                       ],
                     )
                   ],
-                );
-              }
+                ),
             ),
 
-          ),
-        );
+          );
   }
 }
 

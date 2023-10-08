@@ -30,6 +30,7 @@ dependencies:
   cupertino_icons: ^1.0.2
   file_picker:
   modal_progress_hud_nsn:
+  camera: ^0.10.5+2
 
 dev_dependencies:
   flutter_test:
